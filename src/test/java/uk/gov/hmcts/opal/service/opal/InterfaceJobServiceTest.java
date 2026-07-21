@@ -36,6 +36,9 @@ import uk.gov.hmcts.opal.repository.InterfaceJobRepository;
 import uk.gov.hmcts.opal.service.UserStateService;
 import uk.gov.hmcts.opal.service.opal.InterfaceJobService.InterfaceJobSearchCriteria;
 
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 @ExtendWith(MockitoExtension.class)
 class InterfaceJobServiceTest {
 
@@ -123,6 +126,22 @@ class InterfaceJobServiceTest {
             requestedBusinessUnitIds, FinesPermission.PROCESS_AND_ALLOCATE_PAYMENTS);
         verify(interfaceJobMapper).toSummaryResponse(interfaceJob, firstFile);
         verify(interfaceJobMapper).toSummaryResponse(interfaceJob, secondFile);
+    }
+
+    @Test
+    void deleteInterfaceJobs_deletesRelatedRowsThenJobs() {
+        List<Long> interfaceJobIds = List.of(100L, 101L);
+
+        interfaceJobService.deleteInterfaceJobs(interfaceJobIds);
+
+        verify(interfaceJobRepository).deleteAllById(interfaceJobIds);
+    }
+
+    @Test
+    void deleteInterfaceJobs_whenNoIds_doesNothing() {
+        interfaceJobService.deleteInterfaceJobs(List.of());
+
+        verifyNoInteractions(interfaceJobRepository);
     }
 
     private InterfaceJobsSummaryItem summaryResponse(
