@@ -3,7 +3,6 @@ package uk.gov.hmcts.opal.service.messaging;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 import org.postgresql.util.PSQLException;
-import org.springframework.core.NestedExceptionUtils;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.orm.jpa.JpaSystemException;
@@ -26,17 +25,33 @@ public class TransientFailureHelper {
             return true;
         }
         if (ex instanceof TransactionSystemException || ex instanceof JpaSystemException) {
-            return isTransientSqlState(psqlState(NestedExceptionUtils.getMostSpecificCause(ex)));
+            PSQLException psqlException = findPsqlException(ex);
+            return psqlException != null
+                && (isTransientConnectionFailure(psqlException) || isTransientSqlState(psqlState(psqlException)));
         }
 
-        Throwable root = NestedExceptionUtils.getMostSpecificCause(ex);
-        if (root instanceof PSQLException psqlException) {
-            return psqlException.getCause() instanceof ConnectException
-                || psqlException.getCause() instanceof UnknownHostException
-                || isTransientSqlState(psqlState(psqlException));
+        PSQLException psqlException = findPsqlException(ex);
+        if (psqlException != null) {
+            return isTransientConnectionFailure(psqlException) || isTransientSqlState(psqlState(psqlException));
         }
 
         return false;
+    }
+
+    private static boolean isTransientConnectionFailure(PSQLException psqlException) {
+        return psqlException.getCause() instanceof ConnectException
+            || psqlException.getCause() instanceof UnknownHostException;
+    }
+
+    private static PSQLException findPsqlException(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof PSQLException psqlException) {
+                return psqlException;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     private static String psqlState(Throwable throwable) {
